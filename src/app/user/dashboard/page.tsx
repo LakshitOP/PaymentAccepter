@@ -16,6 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { SiteNavbar } from '@/components/site-navbar';
 
 export const dynamic = 'force-dynamic';
 
@@ -97,7 +98,7 @@ export default function UserDashboard() {
   }, [router]);
 
   useEffect(() => {
-    if (secondsLeft <= 0) {
+    if (secondsLeft <= 0 || user?.hasPaid) {
       return;
     }
 
@@ -106,7 +107,7 @@ export default function UserDashboard() {
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [secondsLeft]);
+  }, [secondsLeft, user?.hasPaid]);
 
   const handleMarkPaid = async () => {
     if (!user || !db) {
@@ -144,97 +145,209 @@ export default function UserDashboard() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="rounded-3xl border border-white/70 bg-white/80 px-6 py-4 text-sm font-medium text-slate-600 shadow-lg backdrop-blur">
-          Preparing your dashboard...
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center">
+        <div className="rounded-2xl border border-slate-200 bg-white px-6 py-4 text-sm font-medium text-slate-600 shadow-lg">
+          Preparing your payment dashboard...
         </div>
       </div>
     );
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_#d9f99d_0%,_#f8fafc_35%,_#e2e8f0_100%)] px-4 py-8 sm:px-6">
-      <div className="pointer-events-none absolute inset-0 opacity-40 [background:linear-gradient(120deg,transparent_0%,rgba(15,23,42,0.05)_25%,transparent_50%,rgba(15,23,42,0.05)_75%,transparent_100%)]" />
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-4xl items-center justify-center">
-      <Card className="relative w-full max-w-2xl rounded-3xl border-slate-200/80 bg-white/95 shadow-[0_30px_80px_-35px_rgba(15,23,42,0.35)] backdrop-blur">
-        <CardHeader className="space-y-4 border-b border-slate-100 pb-6">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <Badge variant="default" className="bg-emerald-500 text-slate-950">
-                Payment
-              </Badge>
-              <CardTitle className="mt-3 text-2xl text-slate-950">Pay Rs {amount}</CardTitle>
-              <CardDescription className="mt-2">
-                Complete your payment in 60 seconds.
-              </CardDescription>
-            </div>
-            <Button variant="outline" className="rounded-2xl" onClick={handleLogout}>
-              Logout
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+      <SiteNavbar />
+
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900">Payment Confirmation</h1>
+            <p className="text-slate-600 mt-1">Complete your UNO No Mercy entry fee</p>
+          </div>
+          <Button
+            variant="outline"
+            onClick={handleLogout}
+            className="border-slate-300 text-slate-700 hover:bg-slate-50"
+          >
+            Logout
+          </Button>
+        </div>
+
+        {error && (
+          <Alert variant="danger" className="mb-6">{error}</Alert>
+        )}
+        {!isFirebaseConfigured && (
+          <Alert variant="warning" className="mb-6">{firebaseConfigError}</Alert>
+        )}
+
+        <div className="grid lg:grid-cols-3 gap-6">
+          {/* Main Payment Card */}
+          <div className="lg:col-span-2 space-y-6">
+            {/* User Info */}
+            <Card className="border-slate-200 shadow-card">
+              <CardHeader>
+                <CardTitle className="text-lg">Your Details</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid sm:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Full Name</p>
+                    <p className="text-lg font-semibold text-slate-900 mt-1">{user?.name || 'User'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Email</p>
+                    <p className="text-lg font-semibold text-slate-900 mt-1 truncate">{user?.email || 'N/A'}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* QR Code Section */}
+            <Card className="border-slate-200 shadow-card">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-lg">Payment Method</CardTitle>
+                    <CardDescription>Scan the QR code or use UPI ID</CardDescription>
+                  </div>
+                  <Badge className="bg-blue-100 text-blue-700">UPI</Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex justify-center">
+                  <div className="rounded-2xl border-4 border-slate-200 bg-white p-4">
+                    <img
+                      src={qrImageUrl}
+                      alt="UPI payment QR code"
+                      className="h-48 w-48"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <p className="text-sm text-slate-600 text-center">UPI ID</p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 rounded-lg bg-slate-100 px-3 py-2 font-mono text-sm font-semibold text-slate-900 break-all">
+                      {upiId}
+                    </code>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Payment Instructions */}
+            <Card className="border-slate-200 shadow-card bg-gradient-to-br from-blue-50 to-white">
+              <CardHeader>
+                <CardTitle className="text-lg text-slate-900">How to Pay</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex gap-3">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white flex-shrink-0">
+                    1
+                  </div>
+                  <p className="text-sm text-slate-700">Open your UPI app (Google Pay, PhonePe, etc.)</p>
+                </div>
+                <div className="flex gap-3">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white flex-shrink-0">
+                    2
+                  </div>
+                  <p className="text-sm text-slate-700">Scan the QR code or enter UPI ID {upiId}</p>
+                </div>
+                <div className="flex gap-3">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white flex-shrink-0">
+                    3
+                  </div>
+                  <p className="text-sm text-slate-700">Pay ₹{amount}</p>
+                </div>
+                <div className="flex gap-3">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-600 text-xs font-bold text-white flex-shrink-0">
+                    4
+                  </div>
+                  <p className="text-sm text-slate-700">Click "I have paid" below to confirm</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar */}
+          <div className="space-y-6">
+            {/* Payment Status */}
+            <Card className={`border-slate-200 shadow-card ${user?.hasPaid ? 'bg-green-50 border-green-200' : 'bg-amber-50 border-amber-200'}`}>
+              <CardHeader>
+                <CardTitle className="text-lg">Payment Status</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide">Amount</p>
+                  <p className="text-3xl font-bold text-slate-900 mt-1">₹{amount}</p>
+                </div>
+                <div className="pt-4 border-t border-slate-200">
+                  <div className="flex items-center gap-2">
+                    <div className={`h-3 w-3 rounded-full ${user?.hasPaid ? 'bg-green-500' : 'bg-amber-500'}`} />
+                    <p className={`text-sm font-semibold ${user?.hasPaid ? 'text-green-700' : 'text-amber-700'}`}>
+                      {user?.hasPaid ? 'Paid ✓' : 'Pending'}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Timer */}
+            <Card className="border-slate-200 shadow-card">
+              <CardHeader>
+                <CardTitle className="text-lg text-sm">Timer</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-4xl font-bold tabular-nums ${secondsLeft <= 10 ? 'text-red-600' : secondsLeft <= 30 ? 'text-amber-600' : 'text-green-600'}`}>
+                    {String(secondsLeft).padStart(2, '0')}
+                  </span>
+                  <span className="text-slate-600 font-medium">seconds</span>
+                </div>
+                <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full transition-all ${
+                      secondsLeft <= 10 ? 'bg-red-500' :
+                      secondsLeft <= 30 ? 'bg-amber-500' :
+                      'bg-green-500'
+                    }`}
+                    style={{ width: `${(secondsLeft / 60) * 100}%` }}
+                  />
+                </div>
+                <p className="text-xs text-slate-600">Complete payment within the time</p>
+              </CardContent>
+            </Card>
+
+            {/* Action Button */}
+            <Button
+              onClick={handleMarkPaid}
+              disabled={markingPaid || user?.hasPaid === true || !isFirebaseConfigured || secondsLeft <= 0}
+              size="lg"
+              className={`w-full h-12 font-semibold rounded-xl shadow-lg transition-all ${
+                user?.hasPaid
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800'
+              }`}
+            >
+              {user?.hasPaid ? (
+                <span className="flex items-center gap-2">
+                  <span>✓ Payment Confirmed</span>
+                </span>
+              ) : markingPaid ? (
+                <span className="flex items-center gap-2">
+                  <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                  Confirming...
+                </span>
+              ) : secondsLeft <= 0 ? (
+                'Time Expired'
+              ) : (
+                'I Have Paid ✓'
+              )}
             </Button>
           </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">User</p>
-              <p className="mt-2 font-semibold text-slate-950">{user?.name || 'User'}</p>
-              <p className="text-sm text-slate-500">{user?.email || '-'}</p>
-            </div>
-            <div className="rounded-2xl bg-slate-50 p-4">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Status</p>
-              <p className={`mt-2 font-semibold ${user?.hasPaid ? 'text-emerald-600' : 'text-slate-950'}`}>
-                {user?.hasPaid ? 'Paid' : 'Not Paid'}
-              </p>
-              <p className="text-sm text-slate-500">{secondsLeft}s remaining</p>
-            </div>
-          </div>
-        </CardHeader>
-
-        <CardContent className="space-y-6 pt-6">
-          {error && <Alert variant="danger">{error}</Alert>}
-          {!isFirebaseConfigured && <Alert variant="warning">{firebaseConfigError}</Alert>}
-
-          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
-            <p className="text-sm font-medium text-slate-700">
-              Complete your payment in {secondsLeft} seconds
-            </p>
-            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200">
-              <div
-                className={`h-full rounded-full transition-all ${secondsLeft <= 10 ? 'bg-amber-500' : 'bg-emerald-500'}`}
-                style={{ width: `${(secondsLeft / 60) * 100}%` }}
-              />
-            </div>
-          </div>
-
-          <div className="grid gap-5 sm:grid-cols-[1fr_220px] sm:items-center">
-            <div className="space-y-3">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-500">UPI ID</p>
-              <p className="break-all rounded-xl bg-slate-100 px-3 py-2 font-mono text-sm font-semibold text-slate-900">
-                {upiId}
-              </p>
-              <p className="text-sm text-slate-500">Amount: Rs {amount}</p>
-            </div>
-            <div className="flex justify-center">
-              <img
-                src={qrImageUrl}
-                alt="UPI payment QR code"
-                className="h-44 w-44 rounded-2xl border border-slate-200 bg-white p-2 shadow-sm"
-              />
-            </div>
-          </div>
-
-          <Button
-            onClick={handleMarkPaid}
-            disabled={markingPaid || user?.hasPaid === true || !isFirebaseConfigured}
-            size="lg"
-            className="w-full rounded-2xl bg-slate-950 text-white hover:bg-slate-800"
-          >
-            {user?.hasPaid ? 'Payment already marked as paid' : markingPaid ? 'Updating status...' : 'I have paid'}
-          </Button>
-        </CardContent>
-      </Card>
-      </div>
+        </div>
+      </main>
 
       {showSuccess && <SuccessAnimation onClose={() => setShowSuccess(false)} />}
-    </main>
+    </div>
   );
 }
