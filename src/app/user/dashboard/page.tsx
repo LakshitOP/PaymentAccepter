@@ -141,12 +141,20 @@ export default function UserDashboard() {
         }),
       });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || 'Failed to create payment');
+      // Handle response
+      let result;
+      const contentType = response.headers.get('content-type');
+      
+      if (!contentType?.includes('application/json')) {
+        const text = await response.text();
+        throw new Error(`Server error (${response.status}): ${text.substring(0, 100)}`);
       }
 
-      const result = await response.json();
+      result = await response.json();
+
+      if (!response.ok) {
+        throw new Error(result.error || `Server error (${response.status})`);
+      }
       
       // Redirect to pending verification page
       router.push(`/user/payment-pending?id=${result.paymentId}`);

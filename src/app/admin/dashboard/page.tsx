@@ -132,15 +132,26 @@ export default function AdminDashboard() {
         }),
       });
 
+      // Handle response
+      const contentType = response.headers.get('content-type');
+      let data;
+      
+      if (!contentType?.includes('application/json')) {
+        const text = await response.text();
+        throw new Error(`Server error (${response.status}): ${text.substring(0, 100)}`);
+      }
+
+      data = await response.json();
+
       if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Failed to update payment');
+        throw new Error(data.error || `Server error (${response.status})`);
       }
 
       setReason('');
       setError('');
     } catch (err: any) {
       setError(err.message || 'Failed to update payment status');
+      console.error('Update status error:', err);
     } finally {
       setUpdating(null);
     }
