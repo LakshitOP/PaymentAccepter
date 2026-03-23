@@ -1,0 +1,114 @@
+
+╔════════════════════════════════════════════════════════════╗
+║  FIREBASE CONSOLE SETUP - STEP BY STEP                    ║
+╚════════════════════════════════════════════════════════════╝
+
+PROJECT: testcase-f67c9
+DOMAIN: testcase-f67c9.firebaseapp.com
+
+─────────────────────────────────────────────────────────
+
+STEP 1: CREATE FIRESTORE COLLECTIONS
+URL: https://console.firebase.google.com/project/testcase-f67c9/firestore
+
+Actions:
+1. Click "Create Collection"
+2. Name: payments → Create
+3. Click "Create Collection"  
+4. Name: admins → Create
+5. Click "Create Collection"
+6. Name: config → Create
+
+─────────────────────────────────────────────────────────
+
+STEP 2: CREATE CONFIG DOCUMENT
+In Firestore → config collection
+
+1. Click "Add Document"
+2. Document ID: payment
+3. Add Field:
+   - Field: amount
+   - Type: number
+   - Value: 20
+4. Click Save
+
+─────────────────────────────────────────────────────────
+
+STEP 3: DEPLOY FIRESTORE RULES
+In Firestore → Rules tab
+
+1. Select ALL existing content (Ctrl+A)
+2. Delete it
+3. Paste the following rules:
+4. Click "Publish"
+
+RULES TO PASTE:
+─────────────────────────────────────────────────────────
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Payments
+    match /payments/{paymentId} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null && (
+        resource.data.email == request.auth.token.email ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.token.email))
+      );
+      allow update: if exists(/databases/$(database)/documents/admins/$(request.auth.token.email));
+    }
+    // Admins
+    match /admins/{email} {
+      allow read, write: if request.auth.token.email == email ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.token.email));
+    }
+    // Config
+    match /config/{document=**} {
+      allow read: if true;
+      allow write: if exists(/databases/$(database)/documents/admins/$(request.auth.token.email));
+    }
+  }
+}
+─────────────────────────────────────────────────────────
+
+─────────────────────────────────────────────────────────
+
+STEP 4: CREATE ADMIN ACCOUNT IN FIRESTORE
+In Firestore → admins collection
+
+1. Click "Add Document"
+2. Document ID: [YOUR EMAIL ADDRESS]
+   Example: admin@example.com
+3. Add Field:
+   - Field: role
+   - Type: string
+   - Value: admin
+4. Click Save
+
+─────────────────────────────────────────────────────────
+
+STEP 5: CREATE FIREBASE AUTH USERS
+In Authentication tab
+
+1. Click "Create User"
+2. Create test user:
+   - Email: testuser@example.com
+   - Password: Test@123456
+3. Click "Create User"
+4. Create admin user:
+   - Email: [YOUR EMAIL ADDRESS]
+   - Password: Admin@123456
+
+─────────────────────────────────────────────────────────
+
+✅ SETUP COMPLETE
+
+When done:
+1. Run: npm run dev
+2. Visit: http://localhost:3000/user/login
+3. Login: testuser@example.com / Test@123456
+4. Test payment submission
+
+Admin login:
+1. Visit: http://localhost:3000/admin/login
+2. Login: [YOUR EMAIL] / Admin@123456
+3. Approve the test payment

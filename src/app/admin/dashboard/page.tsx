@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { auth, db, firebaseConfigError } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
-import { collection, getDocs, query, where } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -15,38 +15,42 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { SiteNavbar } from '@/components/site-navbar';
 
 export const dynamic = 'force-dynamic';
 
-interface Transaction {
+interface Payment {
   id: string;
   userId: string;
-  name: string;
   email: string;
+  name: string;
   amount: number;
-  timestamp: any;
-  status: 'pending' | 'verified' | 'rejected';
+  createdAt: any;
+  status: 'pending' | 'approved' | 'rejected';
+  notes: string;
 }
 
 export default function AdminDashboard() {
   const router = useRouter();
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [verifying, setVerifying] = useState<string | null>(null);
+  const [updating, setUpdating] = useState<string | null>(null);
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState<'all' | 'pending' | 'verified' | 'rejected'>(
-    'pending'
-  );
+  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
+  const [reason, setReason] = useState<string>('');
+  const [globalAmount, setGlobalAmount] = useState<number>(20);
+  const [amountUpdating, setAmountUpdating] = useState(false);
 
   useEffect(() => {
-    if (!auth) {
+    if (!auth || !db) {
       setError(firebaseConfigError);
       setLoading(false);
       return;
     }
 
     const firebaseAuth = auth;
+    const firestore = db;
 
     const unsubscribe = firebaseAuth.onAuthStateChanged(async (currentUser: any) => {
       if (!currentUser) {
@@ -54,98 +58,104 @@ export default function AdminDashboard() {
         return;
       }
 
-      await fetchTransactions(filter);
-      setLoading(false);
+      // Check if user is admin
+      const adminDoc = await getDoc(doc(firestore, 'admins', currentUser.email || ''));
+      if (!adminDoc.exists()) {
+        setError('Access denied. Admin privileges required.');
+        await signOut(firebaseAuth);
+        router.push('/admin/login');
+        return;
+      }
+
+      // Subscribe to payment updates
+      let paymentsQuery;
+      if (filter === 'all') {
+        paymentsQuery = query(collection(firestore, 'payments'));
+      } else {
+        paymentsQuery = query(
+          collection(firestore, 'payments'),
+          where('status', '==', filter)
+        );
+      }
+
+      const unsubscribePayments = onSnapshot(paymentsQuery, (snapshot) => {
+        const data = snapshot.docs.map(
+          (doc) =>
+            ({
+              id: doc.id,
+              ...doc.data(),
+            }) as Payment
+        );
+
+        data.sort((a, b) => {
+          const timeA = a.createdAt?.toDate?.() || new Date(a.createdAt);
+          const timeB = b.createdAt?.toDate?.() || new Date(b.createdAt);
+          return timeB.getTime() - timeA.getTime();
+        });
+
+        setPayments(data);
+        setLoading(false);
+      });
+
+      return () => unsubscribePayments();
     });
 
     return () => unsubscribe();
   }, [filter, router]);
 
-  const fetchTransactions = async (statusFilter: typeof filter) => {
-    try {
-      setError('');
-
-      if (!db) {
-        setError(firebaseConfigError);
-        return;
-      }
-
-      const firestore = db;
-
-      let transactionsQuery;
-
-      if (statusFilter === 'all') {
-        transactionsQuery = query(collection(firestore, 'transactions'));
-      } else {
-        transactionsQuery = query(
-          collection(firestore, 'transactions'),
-          where('status', '==', statusFilter)
-        );
-      }
-
-      const querySnapshot = await getDocs(transactionsQuery);
-      const data = querySnapshot.docs.map(
-        (snapshot) =>
-          ({
-            id: snapshot.id,
-            ...snapshot.data(),
-          }) as Transaction
-      );
-
-      data.sort((a, b) => {
-        const timeA = a.timestamp?.toDate?.() || new Date(a.timestamp);
-        const timeB = b.timestamp?.toDate?.() || new Date(b.timestamp);
-        return timeB.getTime() - timeA.getTime();
-      });
-
-      setTransactions(data);
-    } catch (err: any) {
-      setError(err.message);
-    }
-  };
-
-  const handleVerify = async (
-    transactionId: string,
-    newStatus: 'verified' | 'rejected'
-  ) => {
-    setVerifying(transactionId);
+  const handleUpdateStatus = async (paymentId: string, newStatus: 'approved' | 'rejected', rejectionReason?: string) => {
+    setUpdating(paymentId);
     try {
       const idToken = await auth?.currentUser?.getIdToken();
       if (!idToken) {
         setError('Not authenticated');
-        setVerifying(null);
+        setUpdating(null);
         return;
       }
 
-      const response = await fetch('/api/transactions/verify', {
+      const response = await fetch('/api/payments/verify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${idToken}`,
+          'Authorization': `Bearer ${idToken}`,
         },
         body: JSON.stringify({
-          transactionId,
+          paymentId,
           status: newStatus,
+          notes: rejectionReason || reason,
         }),
       });
 
-      if (response.ok) {
-        setTransactions((prev) =>
-          prev.map((transaction) =>
-            transaction.id === transactionId
-              ? { ...transaction, status: newStatus }
-              : transaction
-          )
-        );
-      } else {
-        const data = await response.json();
-        setError(data.error || 'Failed to verify transaction');
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Failed to update payment');
       }
-    } catch (err: any) {
-      setError(err.message);
-    }
 
-    setVerifying(null);
+      setReason('');
+      setError('');
+    } catch (err: any) {
+      setError(err.message || 'Failed to update payment status');
+    } finally {
+      setUpdating(null);
+    }
+  };
+
+  const handleUpdateGlobalAmount = async () => {
+    setAmountUpdating(true);
+    try {
+      if (!db) return;
+      
+      await updateDoc(doc(db, 'config', 'payment'), {
+        amount: globalAmount,
+        updatedAt: serverTimestamp(),
+      });
+      
+      setError('');
+    } catch (err: any) {
+      setError('Failed to update payment amount');
+    } finally {
+      setAmountUpdating(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -153,7 +163,6 @@ export default function AdminDashboard() {
       router.push('/');
       return;
     }
-
     await signOut(auth);
     router.push('/');
   };
@@ -162,27 +171,28 @@ export default function AdminDashboard() {
     return (
       <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center">
         <div className="rounded-2xl border border-slate-200 bg-white px-6 py-4 text-sm font-medium text-slate-600 shadow-lg">
-          Loading admin workspace...
+          Loading admin dashboard...
         </div>
       </div>
     );
   }
 
-  const pendingCount = transactions.filter((transaction) => transaction.status === 'pending').length;
-  const verifiedCount = transactions.filter((transaction) => transaction.status === 'verified').length;
-  const rejectedCount = transactions.filter((transaction) => transaction.status === 'rejected').length;
-  const totalAmount = transactions.reduce((sum, t) => sum + (t.amount || 0), 0);
+  const statusCounts = {
+    all: payments.length,
+    pending: payments.filter(p => p.status === 'pending').length,
+    approved: payments.filter(p => p.status === 'approved').length,
+    rejected: payments.filter(p => p.status === 'rejected').length,
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
       <SiteNavbar />
 
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {/* Header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-slate-900">Transaction Dashboard</h1>
-            <p className="text-slate-600 mt-1">Review and verify all player payments</p>
+            <h1 className="text-3xl font-bold text-slate-900">Admin Dashboard</h1>
+            <p className="text-slate-600 mt-1">Manage and verify payments</p>
           </div>
           <Button
             variant="outline"
@@ -193,178 +203,149 @@ export default function AdminDashboard() {
           </Button>
         </div>
 
-        {error && (
-          <Alert variant="danger" className="mb-6">{error}</Alert>
-        )}
+        {error && <Alert variant="danger" className="mb-6">{error}</Alert>}
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <Card className="border-slate-200 shadow-card hover:shadow-card-hover transition-all">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Pending</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-2">{pendingCount}</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg bg-amber-100 flex items-center justify-center">
-                  <span className="text-lg">⏳</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200 shadow-card hover:shadow-card-hover transition-all">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Verified</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-2">{verifiedCount}</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg bg-green-100 flex items-center justify-center">
-                  <span className="text-lg">✓</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200 shadow-card hover:shadow-card-hover transition-all">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Rejected</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-2">{rejectedCount}</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg bg-red-100 flex items-center justify-center">
-                  <span className="text-lg">✕</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="border-slate-200 shadow-card hover:shadow-card-hover transition-all">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total</p>
-                  <p className="text-2xl font-bold text-slate-900 mt-2">₹{totalAmount}</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg bg-blue-100 flex items-center justify-center">
-                  <span className="text-lg">💰</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Transactions Card */}
-        <Card className="border-slate-200 shadow-card">
-          <CardHeader className="border-b border-slate-200">
-            <div className="space-y-4">
-              <div>
-                <CardTitle className="text-2xl text-slate-900">Transactions</CardTitle>
-                <CardDescription className="mt-2">
-                  {transactions.length} transaction{transactions.length !== 1 ? 's' : ''} found
-                </CardDescription>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {(['all', 'pending', 'verified', 'rejected'] as const).map((tab) => (
-                  <button
-                    key={tab}
-                    onClick={() => setFilter(tab)}
-                    className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                      filter === tab
-                        ? 'bg-blue-600 text-white shadow-md'
-                        : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
-                    }`}
+        {/* Settings Card */}
+        <Card className="mb-6 border-slate-200 shadow-card">
+          <CardHeader>
+            <CardTitle className="text-lg">Global Settings</CardTitle>
+            <CardDescription>Manage payment amount and other settings</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-slate-700">Payment Amount (₹)</label>
+                <div className="flex gap-2">
+                  <Input
+                    type="number"
+                    value={globalAmount}
+                    onChange={(e) => setGlobalAmount(Number(e.target.value))}
+                    disabled={amountUpdating}
+                    className="flex-1"
+                  />
+                  <Button
+                    onClick={handleUpdateGlobalAmount}
+                    disabled={amountUpdating}
+                    className="bg-blue-600 hover:bg-blue-700"
                   >
-                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                  </button>
-                ))}
+                    {amountUpdating ? 'Updating...' : 'Update'}
+                  </Button>
+                </div>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Stats Cards */}
+        <div className="grid md:grid-cols-4 gap-4 mb-6">
+          {['all', 'pending', 'approved', 'rejected'].map((status) => (
+            <Card key={status} className="border-slate-200 shadow-card cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setFilter(status as any)}>
+              <CardContent className="pt-6">
+                <div className="text-center">
+                  <p className="text-sm font-medium text-slate-600 capitalize">{status}</p>
+                  <p className="text-3xl font-bold text-slate-900 mt-2">{statusCounts[status as keyof typeof statusCounts]}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Filter Buttons */}
+        <div className="flex gap-2 mb-6 flex-wrap">
+          {['all', 'pending', 'approved', 'rejected'].map((s) => (
+            <Button
+              key={s}
+              variant={filter === s ? 'default' : 'outline'}
+              onClick={() => setFilter(s as any)}
+              className={filter === s ? 'bg-blue-600' : ''}
+            >
+              {s.charAt(0).toUpperCase() + s.slice(1)}
+            </Button>
+          ))}
+        </div>
+
+        {/* Payments Table */}
+        <Card className="border-slate-200 shadow-card">
+          <CardHeader>
+            <CardTitle>Payments ({payments.length})</CardTitle>
+            <CardDescription>
+              {filter === 'all' && 'All payments'}
+              {filter === 'pending' && 'Pending verification'}
+              {filter === 'approved' && 'Approved payments'}
+              {filter === 'rejected' && 'Rejected payments'}
+            </CardDescription>
           </CardHeader>
-          <CardContent className="p-0">
-            {transactions.length === 0 ? (
-              <div className="rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-16 text-center">
-                <p className="text-slate-500 font-medium">No {filter === 'all' ? 'transactions' : `${filter} transactions`} found</p>
-                <p className="text-sm text-slate-400 mt-1">Transactions will appear here when players complete payments</p>
-              </div>
-            ) : (
+          <CardContent>
+            {payments.length > 0 ? (
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full text-sm">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200">
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Player</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Email</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Amount</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Date</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Status</th>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Action</th>
+                    <tr className="border-b border-slate-200 bg-slate-50">
+                      <th className="px-6 py-3 text-left font-semibold text-slate-900">Name</th>
+                      <th className="px-6 py-3 text-left font-semibold text-slate-900">Email</th>
+                      <th className="px-6 py-3 text-left font-semibold text-slate-900">Amount</th>
+                      <th className="px-6 py-3 text-left font-semibold text-slate-900">Date</th>
+                      <th className="px-6 py-3 text-left font-semibold text-slate-900">Status</th>
+                      <th className="px-6 py-3 text-right font-semibold text-slate-900">Action</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200">
-                    {transactions.map((transaction) => (
-                      <tr key={transaction.id} className="hover:bg-slate-50/50 transition-colors">
-                        <td className="px-6 py-4">
-                          <div>
-                            <p className="font-medium text-slate-900">{transaction.name || 'N/A'}</p>
-                            <p className="text-xs text-slate-500 mt-0.5">ID: {transaction.userId?.slice(0, 8)}...</p>
-                          </div>
+                  <tbody>
+                    {payments.map((payment) => (
+                      <tr key={payment.id} className="border-b border-slate-200 hover:bg-slate-50">
+                        <td className="px-6 py-5 font-medium text-slate-900">{payment.name}</td>
+                        <td className="px-6 py-5 text-slate-600 text-xs">{payment.email}</td>
+                        <td className="px-6 py-5 font-semibold text-slate-900">₹{payment.amount}</td>
+                        <td className="px-6 py-5 text-slate-600 text-xs">
+                          {payment.createdAt?.toDate?.().toLocaleDateString()}
                         </td>
-                        <td className="px-6 py-4 text-sm text-slate-600">{transaction.email}</td>
-                        <td className="px-6 py-4 font-semibold text-slate-900">₹{transaction.amount}</td>
-                        <td className="px-6 py-4 text-sm text-slate-600">
-                          {new Date(
-                            transaction.timestamp?.toDate?.() || transaction.timestamp
-                          ).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
-                        </td>
-                        <td className="px-6 py-4">
+                        <td className="px-6 py-5">
                           <Badge
-                            className={`${
-                              transaction.status === 'verified'
-                                ? 'bg-green-100 text-green-700'
-                                : transaction.status === 'rejected'
-                                  ? 'bg-red-100 text-red-700'
-                                  : 'bg-amber-100 text-amber-700'
-                            }`}
+                            variant={
+                              payment.status === 'approved'
+                                ? 'success'
+                                : payment.status === 'rejected'
+                                  ? 'danger'
+                                  : 'warning'
+                            }
                           >
-                            {transaction.status.charAt(0).toUpperCase() + transaction.status.slice(1)}
+                            {payment.status.charAt(0).toUpperCase() + payment.status.slice(1)}
                           </Badge>
                         </td>
-                        <td className="px-6 py-4">
-                          {transaction.status === 'pending' ? (
-                            <div className="flex flex-wrap gap-2">
+                        <td className="px-6 py-5 text-right">
+                          {payment.status === 'pending' && (
+                            <div className="flex flex-wrap gap-2 justify-end">
                               <Button
                                 size="sm"
-                                onClick={() => handleVerify(transaction.id, 'verified')}
-                                disabled={verifying === transaction.id}
-                                className="bg-green-600 hover:bg-green-700 text-white text-xs"
+                                variant="secondary"
+                                disabled={updating === payment.id}
+                                onClick={() => handleUpdateStatus(payment.id, 'approved')}
+                                className="rounded-xl"
                               >
-                                {verifying === transaction.id ? 'Processing...' : 'Approve'}
+                                {updating === payment.id ? 'Processing...' : 'Approve'}
                               </Button>
                               <Button
                                 size="sm"
                                 variant="destructive"
-                                onClick={() => handleVerify(transaction.id, 'rejected')}
-                                disabled={verifying === transaction.id}
-                                className="text-xs"
+                                disabled={updating === payment.id}
+                                onClick={() => handleUpdateStatus(payment.id, 'rejected', `Payment rejected - ${reason || 'Invalid UPI'}`)}
+                                className="rounded-xl"
                               >
                                 Reject
                               </Button>
                             </div>
-                          ) : (
-                            <span className="text-xs text-slate-400">—</span>
+                          )}
+                          {payment.status !== 'pending' && (
+                            <span className="text-xs text-slate-400">No action</span>
                           )}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-slate-600">No payments found</p>
               </div>
             )}
           </CardContent>

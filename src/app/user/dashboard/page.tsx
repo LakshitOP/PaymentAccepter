@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { auth, db, firebaseConfigError, isFirebaseConfigured } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
-import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import Link from 'next/link';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -110,24 +111,47 @@ export default function UserDashboard() {
   }, [secondsLeft, user?.hasPaid]);
 
   const handleMarkPaid = async () => {
-    if (!user || !db) {
+    if (!user || !auth) {
       return;
     }
 
     setMarkingPaid(true);
     setError('');
     try {
-      await updateDoc(doc(db, 'users', user.uid), {
-        hasPaid: true,
+      // Get ID token
+      const idToken = await auth.currentUser?.getIdToken();
+      if (!idToken) {
+        setError('Not authenticated');
+        setMarkingPaid(false);
+        return;
+      }
+
+      // Create payment entry in Firestore
+      const response = await fetch('/api/payments/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          amount,
+          userId: user.uid,
+          email: user.email,
+          name: user.name,
+        }),
       });
 
-      setUser((prev: any) => ({
-        ...prev,
-        hasPaid: true,
-      }));
-      setShowSuccess(true);
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to create payment');
+      }
+
+      const result = await response.json();
+      
+      // Redirect to pending verification page
+      router.push(`/user/payment-pending?id=${result.paymentId}`);
     } catch (err: any) {
-      setError(err.message || 'Unable to update payment status.');
+      setError(err.message || 'Unable to submit payment for verification.');
     } finally {
       setMarkingPaid(false);
     }
@@ -163,13 +187,23 @@ export default function UserDashboard() {
             <h1 className="text-3xl font-bold text-slate-900">Payment Confirmation</h1>
             <p className="text-slate-600 mt-1">Complete your UNO No Mercy entry fee</p>
           </div>
-          <Button
-            variant="outline"
-            onClick={handleLogout}
-            className="border-slate-300 text-slate-700 hover:bg-slate-50"
-          >
-            Logout
-          </Button>
+          <div className="flex gap-2">
+            <Link href="/user/payment-history">
+              <Button
+                variant="outline"
+                className="border-slate-300 text-slate-700 hover:bg-slate-50"
+              >
+                Payment History
+              </Button>
+            </Link>
+            <Button
+              variant="outline"
+              onClick={handleLogout}
+              className="border-slate-300 text-slate-700 hover:bg-slate-50"
+            >
+              Logout
+            </Button>
+          </div>
         </div>
 
         {error && (
@@ -330,17 +364,17 @@ export default function UserDashboard() {
             >
               {user?.hasPaid ? (
                 <span className="flex items-center gap-2">
-                  <span>✓ Payment Confirmed</span>
+                  <span>✓ Payment Submitted</span>
                 </span>
               ) : markingPaid ? (
                 <span className="flex items-center gap-2">
                   <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-                  Confirming...
+                  Submitting...
                 </span>
               ) : secondsLeft <= 0 ? (
                 'Time Expired'
               ) : (
-                'I Have Paid ✓'
+                'I Have Paid - Submit for Verification'
               )}
             </Button>
           </div>
