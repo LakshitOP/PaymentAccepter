@@ -7,6 +7,16 @@ import { signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import SuccessAnimation from '@/components/SuccessAnimation';
 import Script from 'next/script';
+import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 
 export const dynamic = 'force-dynamic';
 
@@ -135,8 +145,10 @@ export default function UserDashboard() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-500 to-purple-600">
-        <div className="text-2xl text-white">Loading...</div>
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="rounded-3xl border border-white/70 bg-white/80 px-6 py-4 text-sm font-medium text-slate-600 shadow-lg backdrop-blur">
+          Preparing your dashboard...
+        </div>
       </div>
     );
   }
@@ -147,104 +159,176 @@ export default function UserDashboard() {
         src="https://checkout.razorpay.com/v1/checkout.js"
         strategy="lazyOnload"
       />
-      <div className="min-h-screen bg-gradient-to-br from-blue-500 to-purple-600 p-4 md:p-8">
-        <div className="mx-auto max-w-2xl">
-          <div className="mb-8 flex items-center justify-between">
-            <h1 className="text-3xl font-bold text-white md:text-4xl">UNO No Mercy</h1>
-            <button
-              onClick={handleLogout}
-              className="rounded-lg bg-red-500 px-4 py-2 font-bold text-white transition-colors hover:bg-red-600"
-            >
-              Logout
-            </button>
-          </div>
 
-          <div className="mb-6 rounded-lg bg-white p-6 shadow-lg">
-            <div className="mb-4 flex items-center gap-4">
-              {user?.photoURL && (
-                <img
-                  src={user.photoURL}
-                  alt="Profile"
-                  className="h-16 w-16 rounded-full"
-                />
-              )}
-              <div>
-                <h2 className="text-2xl font-bold text-gray-800">
-                  {user?.displayName || 'Player'}
-                </h2>
-                <p className="text-gray-600">{user?.email}</p>
+      <main className="mx-auto min-h-screen w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="space-y-8">
+          <section className="flex flex-col gap-6 rounded-[32px] border border-white/70 bg-white/80 p-6 shadow-[0_20px_70px_-32px_rgba(15,23,42,0.35)] backdrop-blur lg:flex-row lg:items-center lg:justify-between lg:p-8">
+            <div className="space-y-4">
+              <Badge variant="default" className="bg-emerald-500 text-slate-950">
+                Player Dashboard
+              </Badge>
+              <div className="flex items-center gap-4">
+                {user?.photoURL && (
+                  <img
+                    src={user.photoURL}
+                    alt="Profile"
+                    className="h-14 w-14 rounded-2xl object-cover ring-4 ring-white"
+                  />
+                )}
+                <div>
+                  <h1 className="text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+                    {user?.displayName || 'Player'}
+                  </h1>
+                  <p className="text-sm text-slate-500">{user?.email}</p>
+                </div>
               </div>
+              <p className="max-w-2xl text-sm leading-7 text-slate-600">
+                Complete the payment below to unlock your play session with a clean,
+                secure checkout experience.
+              </p>
             </div>
-          </div>
 
-          {error && (
-            <div className="mb-6 rounded border border-red-400 bg-red-100 px-4 py-3 text-red-700">
-              {error}
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <div className="rounded-2xl border border-emerald-100 bg-emerald-50 px-5 py-4">
+                <p className="text-xs uppercase tracking-[0.24em] text-emerald-600">
+                  Amount
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-slate-950">Rs 20</p>
+              </div>
+              <Button variant="outline" className="rounded-2xl" onClick={handleLogout}>
+                Logout
+              </Button>
             </div>
+          </section>
+
+          {error && <Alert variant="danger">{error}</Alert>}
+
+          {!isFirebaseConfigured && (
+            <Alert variant="warning">{firebaseConfigError}</Alert>
           )}
 
-          <div className="rounded-lg bg-white p-6 shadow-lg md:p-8">
-            <h3 className="mb-6 text-2xl font-bold text-gray-800">Pay to Play</h3>
+          <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <Card className="border-slate-200/80">
+              <CardHeader className="space-y-3">
+                <Badge variant="muted" className="w-fit">
+                  Payment Form
+                </Badge>
+                <CardTitle className="text-2xl">Complete your payment</CardTitle>
+                <CardDescription>
+                  Choose the quick Razorpay checkout or use the UPI details on the
+                  right for direct payment.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-4 sm:grid-cols-3">
+                  {[
+                    ['Flat fee', 'Rs 20'],
+                    ['Gateway', 'Razorpay'],
+                    ['Status', 'Secure'],
+                  ].map(([label, value]) => (
+                    <div key={label} className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                      <p className="text-sm text-slate-500">{label}</p>
+                      <p className="mt-2 text-lg font-semibold text-slate-950">{value}</p>
+                    </div>
+                  ))}
+                </div>
 
-            <div className="grid grid-cols-1 gap-8 md:grid-cols-2">
-              <div className="flex flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 p-6">
-                <div className="mb-4 flex h-48 w-48 items-center justify-center rounded-lg bg-gray-200">
-                  <div className="text-center">
-                    <p className="mb-2 font-semibold text-gray-600">UPI QR Code</p>
-                    <p className="text-sm text-gray-500">
-                      Upload your QR image to Firebase Storage
-                    </p>
+                <div className="rounded-3xl border border-slate-200 bg-slate-950 p-6 text-white">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-sm uppercase tracking-[0.24em] text-emerald-300">
+                        Checkout
+                      </p>
+                      <h3 className="mt-2 text-3xl font-semibold">Pay Rs 20</h3>
+                      <p className="mt-3 max-w-lg text-sm leading-7 text-slate-300">
+                        Open the hosted checkout, complete payment, and get instant
+                        confirmation once verification succeeds.
+                      </p>
+                    </div>
+                    <div className="rounded-2xl bg-white/10 px-4 py-3 text-right">
+                      <p className="text-xs text-slate-300">Order total</p>
+                      <p className="mt-1 text-2xl font-semibold">Rs 20</p>
+                    </div>
+                  </div>
+
+                  <Button
+                    onClick={handlePayment}
+                    disabled={paymentLoading || !isFirebaseConfigured}
+                    variant="secondary"
+                    size="lg"
+                    className="mt-6 w-full rounded-2xl"
+                  >
+                    {paymentLoading ? 'Processing payment...' : 'Launch Razorpay Checkout'}
+                  </Button>
+                </div>
+
+                <div className="rounded-2xl bg-slate-50 p-5">
+                  <h4 className="text-sm font-semibold uppercase tracking-[0.24em] text-slate-500">
+                    How it works
+                  </h4>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    {[
+                      'Login with your account',
+                      'Complete checkout securely',
+                      'Get confirmation instantly',
+                    ].map((item, index) => (
+                      <div key={item} className="rounded-2xl bg-white p-4 shadow-sm">
+                        <p className="text-xs font-semibold text-emerald-500">Step {index + 1}</p>
+                        <p className="mt-2 text-sm leading-6 text-slate-600">{item}</p>
+                      </div>
+                    ))}
                   </div>
                 </div>
-                <p className="text-center text-sm text-gray-600">
-                  Scan this QR code to send Rs 20
-                </p>
-              </div>
+              </CardContent>
+            </Card>
 
-              <div className="flex flex-col justify-center">
-                <div className="mb-6">
-                  <p className="mb-2 text-sm text-gray-600">Amount to Pay</p>
-                  <p className="text-4xl font-bold text-green-600">Rs 20</p>
-                </div>
+            <div className="space-y-6">
+              <Card className="border-slate-200/80">
+                <CardHeader>
+                  <CardTitle>UPI details</CardTitle>
+                  <CardDescription>
+                    Use the QR or UPI ID if you want to pay directly from a UPI app.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5">
+                  <div className="flex min-h-[280px] items-center justify-center rounded-3xl border border-dashed border-slate-300 bg-slate-50">
+                    <div className="space-y-2 text-center">
+                      <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-100 text-sm font-semibold text-emerald-700">
+                        QR
+                      </div>
+                      <p className="font-medium text-slate-700">UPI QR Code</p>
+                      <p className="max-w-xs text-sm leading-6 text-slate-500">
+                        Upload your QR image to Firebase Storage for a production-ready
+                        payment card.
+                      </p>
+                    </div>
+                  </div>
 
-                <div className="mb-6 rounded-lg bg-gray-100 p-4">
-                  <p className="mb-2 text-sm text-gray-600">UPI ID</p>
-                  <p className="break-all font-mono text-lg font-semibold text-gray-800">
-                    your-upi@paytm
+                  <div className="rounded-2xl bg-slate-50 p-4">
+                    <p className="text-xs uppercase tracking-[0.24em] text-slate-500">
+                      UPI ID
+                    </p>
+                    <p className="mt-2 break-all font-mono text-lg font-semibold text-slate-950">
+                      your-upi@paytm
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card className="border-slate-200/80">
+                <CardContent className="p-6">
+                  <p className="text-sm leading-7 text-slate-600">
+                    Payments are processed through Razorpay and the app keeps the
+                    same checkout and verification logic intact.
                   </p>
-                  <p className="mt-2 text-xs text-gray-500">
-                    You can also use UPI apps directly
-                  </p>
-                </div>
-
-                <button
-                  onClick={handlePayment}
-                  disabled={paymentLoading || !isFirebaseConfigured}
-                  className="w-full rounded-lg bg-gradient-to-r from-green-500 to-emerald-600 px-4 py-3 text-lg font-bold text-white transition-all hover:from-green-600 hover:to-emerald-700 disabled:from-gray-400 disabled:to-gray-500"
-                >
-                  {paymentLoading ? 'Processing...' : 'Pay Rs 20'}
-                </button>
-
-                <p className="mt-4 text-center text-xs text-gray-500">
-                  Secure payment via Razorpay
-                </p>
-              </div>
+                </CardContent>
+              </Card>
             </div>
-
-            <div className="mt-8 rounded-lg border border-blue-200 bg-blue-50 p-4">
-              <h4 className="mb-2 font-semibold text-blue-900">How it works:</h4>
-              <ul className="space-y-1 text-sm text-blue-800">
-                <li>1. Click "Pay Rs 20" to initiate secure payment.</li>
-                <li>2. Complete payment via Razorpay.</li>
-                <li>3. Receive instant confirmation.</li>
-                <li>4. Admin will verify and you can start playing.</li>
-              </ul>
-            </div>
-          </div>
+          </section>
         </div>
 
         {showSuccess && <SuccessAnimation onClose={() => setShowSuccess(false)} />}
-      </div>
+      </main>
     </>
   );
 }

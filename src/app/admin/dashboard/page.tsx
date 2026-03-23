@@ -5,6 +5,16 @@ import { auth, db, firebaseConfigError } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { collection, getDocs, query, where } from 'firebase/firestore';
+import { Alert } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
 
 export const dynamic = 'force-dynamic';
 
@@ -150,8 +160,10 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-purple-500 to-indigo-600">
-        <div className="text-2xl text-white">Loading...</div>
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="rounded-3xl border border-white/70 bg-white/80 px-6 py-4 text-sm font-medium text-slate-600 shadow-lg backdrop-blur">
+          Loading admin workspace...
+        </div>
       </div>
     );
   }
@@ -160,149 +172,182 @@ export default function AdminDashboard() {
   const verifiedCount = transactions.filter((transaction) => transaction.status === 'verified').length;
 
   return (
-    <div className="min-h-screen bg-gray-100 p-4 md:p-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-8 flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-800">Admin Dashboard</h1>
-            <p className="mt-1 text-gray-600">Payment Verification</p>
+    <main className="mx-auto min-h-screen w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+      <div className="space-y-8">
+        <section className="flex flex-col gap-6 rounded-[32px] border border-white/70 bg-white/80 p-6 shadow-[0_20px_70px_-32px_rgba(15,23,42,0.35)] backdrop-blur lg:flex-row lg:items-center lg:justify-between lg:p-8">
+          <div className="space-y-4">
+            <Badge variant="default" className="bg-cyan-300 text-slate-950">
+              Admin Dashboard
+            </Badge>
+            <div>
+              <h1 className="text-3xl font-semibold tracking-tight text-slate-950 sm:text-4xl">
+                Payment verification workspace
+              </h1>
+              <p className="mt-2 max-w-2xl text-sm leading-7 text-slate-600">
+                Review player transactions, filter by status, and approve or reject
+                payments from a cleaner responsive table layout.
+              </p>
+            </div>
           </div>
-          <button
-            onClick={handleLogout}
-            className="rounded-lg bg-red-500 px-4 py-2 font-bold text-white transition-colors hover:bg-red-600"
-          >
-            Logout
-          </button>
-        </div>
 
-        <div className="mb-8 grid grid-cols-1 gap-4 md:grid-cols-3">
-          <div className="rounded-lg border border-blue-200 bg-blue-50 p-4">
-            <p className="text-sm font-semibold text-blue-600">Pending</p>
-            <p className="text-3xl font-bold text-blue-900">{pendingCount}</p>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4">
+              <p className="text-xs uppercase tracking-[0.24em] text-slate-500">Pending</p>
+              <p className="mt-2 text-2xl font-semibold text-slate-950">{pendingCount}</p>
+            </div>
+            <Button variant="outline" className="rounded-2xl" onClick={handleLogout}>
+              Logout
+            </Button>
           </div>
-          <div className="rounded-lg border border-green-200 bg-green-50 p-4">
-            <p className="text-sm font-semibold text-green-600">Verified</p>
-            <p className="text-3xl font-bold text-green-900">{verifiedCount}</p>
-          </div>
-          <div className="rounded-lg border border-purple-200 bg-purple-50 p-4">
-            <p className="text-sm font-semibold text-purple-600">Total</p>
-            <p className="text-3xl font-bold text-purple-900">{transactions.length}</p>
-          </div>
-        </div>
+        </section>
 
-        {error && (
-          <div className="mb-6 rounded border border-red-400 bg-red-100 px-4 py-3 text-red-700">
-            {error}
-          </div>
-        )}
+        {error && <Alert variant="danger">{error}</Alert>}
 
-        <div className="mb-6 flex flex-wrap gap-2">
-          {(['all', 'pending', 'verified', 'rejected'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setFilter(tab)}
-              className={`rounded-lg px-4 py-2 font-semibold transition-colors ${
-                filter === tab
-                  ? 'bg-purple-500 text-white'
-                  : 'border border-gray-300 bg-white text-gray-700 hover:bg-gray-50'
-              }`}
-            >
-              {tab.charAt(0).toUpperCase() + tab.slice(1)}
-            </button>
+        <section className="grid gap-4 md:grid-cols-3">
+          {[
+            ['Pending', pendingCount.toString(), 'Awaiting action'],
+            ['Verified', verifiedCount.toString(), 'Approved payments'],
+            ['Total', transactions.length.toString(), 'Loaded records'],
+          ].map(([label, value, hint]) => (
+            <Card key={label} className="border-slate-200/80">
+              <CardContent className="space-y-2 p-6">
+                <p className="text-sm text-slate-500">{label}</p>
+                <p className="text-3xl font-semibold text-slate-950">{value}</p>
+                <p className="text-sm text-slate-400">{hint}</p>
+              </CardContent>
+            </Card>
           ))}
-        </div>
+        </section>
 
-        <div className="overflow-hidden rounded-lg bg-white shadow">
-          {transactions.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              No {filter === 'all' ? 'transactions' : `${filter} transactions`} found
+        <Card className="border-slate-200/80">
+          <CardHeader className="space-y-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <CardTitle className="text-2xl">Transactions</CardTitle>
+                <CardDescription>
+                  Filter and verify incoming payments without changing the underlying
+                  approval logic.
+                </CardDescription>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(['all', 'pending', 'verified', 'rejected'] as const).map((tab) => (
+                  <Button
+                    key={tab}
+                    variant={filter === tab ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setFilter(tab)}
+                    className="rounded-xl capitalize"
+                  >
+                    {tab}
+                  </Button>
+                ))}
+              </div>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="border-b bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                      Name
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                      Email
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                      Amount
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                      Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-sm font-semibold text-gray-700">
-                      Action
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {transactions.map((transaction) => (
-                    <tr key={transaction.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 text-sm text-gray-900">
-                        {transaction.name || 'N/A'}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {transaction.email}
-                      </td>
-                      <td className="px-6 py-4 text-sm font-semibold text-green-600">
-                        Rs {transaction.amount}
-                      </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">
-                        {new Date(
-                          transaction.timestamp?.toDate?.() || transaction.timestamp
-                        ).toLocaleDateString()}
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        <span
-                          className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                            transaction.status === 'verified'
-                              ? 'bg-green-100 text-green-800'
-                              : transaction.status === 'rejected'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-yellow-100 text-yellow-800'
-                          }`}
-                        >
-                          {transaction.status.charAt(0).toUpperCase() +
-                            transaction.status.slice(1)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-sm">
-                        {transaction.status === 'pending' ? (
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleVerify(transaction.id, 'verified')}
-                              disabled={verifying === transaction.id}
-                              className="rounded bg-green-500 px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-green-600 disabled:bg-gray-400"
+          </CardHeader>
+          <CardContent>
+            {transactions.length === 0 ? (
+              <div className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-6 py-16 text-center text-sm text-slate-500">
+                No {filter === 'all' ? 'transactions' : `${filter} transactions`} found.
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-3xl border border-slate-100">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full bg-white">
+                    <thead className="bg-slate-50">
+                      <tr className="text-left">
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Name
+                        </th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Email
+                        </th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Amount
+                        </th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Date
+                        </th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Status
+                        </th>
+                        <th className="px-6 py-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                          Action
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {transactions.map((transaction) => (
+                        <tr key={transaction.id} className="hover:bg-slate-50/80">
+                          <td className="px-6 py-5">
+                            <div>
+                              <p className="font-medium text-slate-950">
+                                {transaction.name || 'N/A'}
+                              </p>
+                              <p className="mt-1 text-sm text-slate-500">
+                                User ID: {transaction.userId || 'N/A'}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="px-6 py-5 text-sm text-slate-600">
+                            {transaction.email}
+                          </td>
+                          <td className="px-6 py-5 text-sm font-semibold text-slate-950">
+                            Rs {transaction.amount}
+                          </td>
+                          <td className="px-6 py-5 text-sm text-slate-600">
+                            {new Date(
+                              transaction.timestamp?.toDate?.() || transaction.timestamp
+                            ).toLocaleDateString()}
+                          </td>
+                          <td className="px-6 py-5">
+                            <Badge
+                              variant={
+                                transaction.status === 'verified'
+                                  ? 'success'
+                                  : transaction.status === 'rejected'
+                                    ? 'danger'
+                                    : 'warning'
+                              }
                             >
-                              {verifying === transaction.id ? 'Processing...' : 'Verify'}
-                            </button>
-                            <button
-                              onClick={() => handleVerify(transaction.id, 'rejected')}
-                              disabled={verifying === transaction.id}
-                              className="rounded bg-red-500 px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-red-600 disabled:bg-gray-400"
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-xs text-gray-500">-</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+                              {transaction.status}
+                            </Badge>
+                          </td>
+                          <td className="px-6 py-5">
+                            {transaction.status === 'pending' ? (
+                              <div className="flex flex-wrap gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="secondary"
+                                  disabled={verifying === transaction.id}
+                                  onClick={() => handleVerify(transaction.id, 'verified')}
+                                  className="rounded-xl"
+                                >
+                                  {verifying === transaction.id ? 'Processing...' : 'Verify'}
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  disabled={verifying === transaction.id}
+                                  onClick={() => handleVerify(transaction.id, 'rejected')}
+                                  className="rounded-xl"
+                                >
+                                  Reject
+                                </Button>
+                              </div>
+                            ) : (
+                              <span className="text-sm text-slate-400">No action needed</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
-    </div>
+    </main>
   );
 }
