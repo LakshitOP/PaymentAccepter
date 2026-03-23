@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { auth, firebaseConfigError, isFirebaseConfigured } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { Alert } from '@/components/ui/alert';
@@ -20,11 +20,9 @@ export const dynamic = 'force-dynamic';
 
 export default function Home() {
   const router = useRouter();
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!auth) {
-      setLoading(false);
       return;
     }
 
@@ -32,21 +30,10 @@ export default function Home() {
       if (user) {
         router.push('/user/dashboard');
       }
-      setLoading(false);
     });
 
     return () => unsubscribe();
   }, [router]);
-
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="rounded-3xl border border-white/70 bg-white/80 px-6 py-4 text-sm font-medium text-slate-600 shadow-lg backdrop-blur">
-          Loading experience...
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen">
@@ -68,7 +55,7 @@ export default function Home() {
               </h1>
               <p className="max-w-2xl text-base leading-8 text-slate-600 sm:text-lg">
                 A polished access portal for players and admins with Google login,
-                secure payment checkout, and instant verification tracking.
+                UPI payment instructions, and instant status tracking.
               </p>
             </div>
 
@@ -89,7 +76,7 @@ export default function Home() {
               {[
                 ['20 Rs', 'Flat payment'],
                 ['Google', 'Instant sign-in'],
-                ['Razorpay', 'Secure checkout'],
+                ['UPI', 'QR-based payment'],
               ].map(([value, label]) => (
                 <Card key={label} className="border-slate-200/80 bg-white/70">
                   <CardContent className="p-5">

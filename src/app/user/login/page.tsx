@@ -42,11 +42,9 @@ export default function UserLogin() {
       await setDoc(
         doc(firestore, 'users', user.uid),
         {
-          email: user.email,
-          photoURL: user.photoURL,
-          displayName: user.displayName,
-          createdAt: new Date(),
-          status: 'active',
+          name: user.displayName || user.email?.split('@')[0] || 'User',
+          email: user.email || '',
+          hasPaid: false,
         },
         { merge: true }
       );
@@ -65,23 +63,23 @@ export default function UserLogin() {
       <div className="grid w-full gap-8 lg:grid-cols-[1fr_440px]">
         <section className="flex flex-col justify-center space-y-6">
           <Badge variant="default" className="w-fit bg-emerald-500 text-slate-950">
-            Player Login
+            Google Sign In
           </Badge>
           <div className="space-y-4">
             <h1 className="max-w-2xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl">
-              Modern checkout access for every player.
+              Login to continue to payment.
             </h1>
             <p className="max-w-xl text-base leading-8 text-slate-600 sm:text-lg">
-              Sign in with Google, confirm your payment, and enter the UNO No Mercy
-              flow from a cleaner, friendlier interface.
+              Use your Google account to continue to the payment screen and complete
+              your confirmation flow.
             </p>
           </div>
 
           <div className="grid gap-4 sm:grid-cols-3">
             {[
               ['01', 'Google authentication'],
-              ['02', 'Secure Razorpay checkout'],
-              ['03', 'Fast admin verification'],
+              ['02', 'UPI QR payment view'],
+              ['03', 'Manual paid confirmation'],
             ].map(([step, label]) => (
               <Card key={label} className="border-slate-200/80 bg-white/70">
                 <CardContent className="space-y-3 p-5">
@@ -100,7 +98,7 @@ export default function UserLogin() {
             </Badge>
             <CardTitle className="text-2xl">Continue as player</CardTitle>
             <CardDescription>
-              Pay Rs 20 to join the game and keep your flow quick on any device.
+              Securely sign in, then pay using UPI and mark your payment status.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
@@ -139,7 +137,7 @@ export default function UserLogin() {
             </Button>
 
             <div className="rounded-2xl bg-slate-50 p-4 text-sm leading-6 text-slate-500">
-              One-click sign in, responsive payment flow, and clean confirmation UI.
+              One-click sign in and a clean payment card with amount, QR code, and timer.
             </div>
 
             <div className="flex items-center justify-between text-sm text-slate-500">
