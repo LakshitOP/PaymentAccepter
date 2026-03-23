@@ -5,6 +5,7 @@ import { auth, db, firebaseConfigError, isFirebaseConfigured } from '@/lib/fireb
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
+import SuccessAnimation from '@/components/SuccessAnimation';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,6 +24,7 @@ export default function UserDashboard() {
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [markingPaid, setMarkingPaid] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState('');
   const [amount, setAmount] = useState<number>(20);
   const [secondsLeft, setSecondsLeft] = useState(60);
@@ -122,6 +124,7 @@ export default function UserDashboard() {
         ...prev,
         hasPaid: true,
       }));
+      setShowSuccess(true);
     } catch (err: any) {
       setError(err.message || 'Unable to update payment status.');
     } finally {
@@ -150,8 +153,10 @@ export default function UserDashboard() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4 py-8 sm:px-6">
-      <Card className="w-full max-w-2xl rounded-3xl border-slate-200/80 shadow-[0_30px_80px_-35px_rgba(15,23,42,0.35)]">
+    <main className="relative min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top,_#d9f99d_0%,_#f8fafc_35%,_#e2e8f0_100%)] px-4 py-8 sm:px-6">
+      <div className="pointer-events-none absolute inset-0 opacity-40 [background:linear-gradient(120deg,transparent_0%,rgba(15,23,42,0.05)_25%,transparent_50%,rgba(15,23,42,0.05)_75%,transparent_100%)]" />
+      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-4xl items-center justify-center">
+      <Card className="relative w-full max-w-2xl rounded-3xl border-slate-200/80 bg-white/95 shadow-[0_30px_80px_-35px_rgba(15,23,42,0.35)] backdrop-blur">
         <CardHeader className="space-y-4 border-b border-slate-100 pb-6">
           <div className="flex items-start justify-between gap-3">
             <div>
@@ -176,7 +181,7 @@ export default function UserDashboard() {
             </div>
             <div className="rounded-2xl bg-slate-50 p-4">
               <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Status</p>
-              <p className="mt-2 font-semibold text-slate-950">
+              <p className={`mt-2 font-semibold ${user?.hasPaid ? 'text-emerald-600' : 'text-slate-950'}`}>
                 {user?.hasPaid ? 'Paid' : 'Not Paid'}
               </p>
               <p className="text-sm text-slate-500">{secondsLeft}s remaining</p>
@@ -194,7 +199,7 @@ export default function UserDashboard() {
             </p>
             <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-200">
               <div
-                className="h-full rounded-full bg-emerald-500 transition-all"
+                className={`h-full rounded-full transition-all ${secondsLeft <= 10 ? 'bg-amber-500' : 'bg-emerald-500'}`}
                 style={{ width: `${(secondsLeft / 60) * 100}%` }}
               />
             </div>
@@ -221,12 +226,15 @@ export default function UserDashboard() {
             onClick={handleMarkPaid}
             disabled={markingPaid || user?.hasPaid === true || !isFirebaseConfigured}
             size="lg"
-            className="w-full rounded-2xl"
+            className="w-full rounded-2xl bg-slate-950 text-white hover:bg-slate-800"
           >
             {user?.hasPaid ? 'Payment already marked as paid' : markingPaid ? 'Updating status...' : 'I have paid'}
           </Button>
         </CardContent>
       </Card>
+      </div>
+
+      {showSuccess && <SuccessAnimation onClose={() => setShowSuccess(false)} />}
     </main>
   );
 }

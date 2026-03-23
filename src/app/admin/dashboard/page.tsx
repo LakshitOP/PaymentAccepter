@@ -26,7 +26,6 @@ interface Transaction {
   amount: number;
   timestamp: any;
   status: 'pending' | 'verified' | 'rejected';
-  razorpayPaymentId?: string;
 }
 
 export default function AdminDashboard() {
