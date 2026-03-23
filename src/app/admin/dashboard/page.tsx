@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { auth, db, firebaseConfigError } from '@/lib/firebase';
 import { useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
-import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, getDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, doc, setDoc, serverTimestamp, getDoc } from 'firebase/firestore';
 import { Alert } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -68,6 +68,12 @@ export default function AdminDashboard() {
       }
 
       // Subscribe to payment updates
+      const configDoc = await getDoc(doc(firestore, 'config', 'payment'));
+      const savedAmount = configDoc.data()?.amount;
+      if (typeof savedAmount === 'number' && Number.isFinite(savedAmount)) {
+        setGlobalAmount(savedAmount);
+      }
+
       let paymentsQuery;
       if (filter === 'all') {
         paymentsQuery = query(collection(firestore, 'payments'));
@@ -143,16 +149,21 @@ export default function AdminDashboard() {
   const handleUpdateGlobalAmount = async () => {
     setAmountUpdating(true);
     try {
-      if (!db) return;
-      
-      await updateDoc(doc(db, 'config', 'payment'), {
+      if (!db) {
+        throw new Error(firebaseConfigError);
+      }
+      if (!Number.isFinite(globalAmount) || globalAmount <= 0) {
+        throw new Error('Please enter a valid payment amount.');
+      }
+
+      await setDoc(doc(db, 'config', 'payment'), {
         amount: globalAmount,
         updatedAt: serverTimestamp(),
-      });
+      }, { merge: true });
       
       setError('');
     } catch (err: any) {
-      setError('Failed to update payment amount');
+      setError(err.message || 'Failed to update payment amount');
     } finally {
       setAmountUpdating(false);
     }
